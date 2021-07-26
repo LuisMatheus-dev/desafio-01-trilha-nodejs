@@ -12,7 +12,7 @@ const users = [];
 
 function checksExistsUserAccount(request, response, next) {
   const { name, username } = request.body;
-
+  
   const account = users.find(( user ) => user.name === name || user.username === username);
 
   if(!account) {
@@ -22,8 +22,20 @@ function checksExistsUserAccount(request, response, next) {
   request.user = account; 
 
   return next();
-    
 }
+
+
+function checksExistsTask(request) {
+  
+  const { user } = request;
+  const { title } = request.body;
+
+  const task = user.tasks.find(task => task.title === title);
+  return task || false;
+
+}
+
+const deadlineOnFormat = (deadline) => deadline.split('-').length === 3;
 
 app.post('/users', (request, response) => {
   const { name, username } = request.body;
@@ -38,29 +50,76 @@ app.post('/users', (request, response) => {
   users.push({
     name,
     username,
-    uuid: uuidv4()
+    uuid: uuidv4(),
+    tasks: [],
   });
-
   
-  return response.status(200).json(users);   
+  return response.status(200).send('User created for successfully ✔️');   
 });
 
 app.get('/todos', checksExistsUserAccount, (request, response) => {
   
-  response.status(200).json(request.user)
-  
+  const account = users.find( ( user ) => user.username === request.user.username);
+  const todos = account.tasks; 
+
+  response.status(200).json(todos)
 });
 
+
 app.post('/todos', checksExistsUserAccount, (request, response) => {
-  // Complete aqui
+  
+  const { title, deadline } = request.body;  
+
+  if (!deadlineOnFormat(deadline)) {
+ 
+    response.status(400).json({ 
+      error: 'Deadline needs to be in format YYYY-MM-DD ❌',
+    })
+    
+  } else if (checksExistsTask(request)) {
+    response.status(400).send('Task already exists ❌');
+
+  } else {
+    const accountIndex = users.findIndex( ( user ) => user.username === request.user.username);
+       
+    users[accountIndex].tasks.push({ 
+      id: uuidv4(),
+      title, 
+      done: false,
+      deadline: new Date(deadline), 
+      created_at: new Date()
+    });
+  
+    response.status(200).send('Task successfully created ✔️');      
+  };
 });
 
 app.put('/todos/:id', checksExistsUserAccount, (request, response) => {
-  // Complete aqui
+  const { id } = request.params
+  const { username } = request.headers;
+  const { deadline, title } = request.body;
+
+  const accountIndex = users.findIndex(( user ) => user.username === username);
+  const taskIndex = users[accountIndex].tasks.findIndex(( task ) =>  task.id === id);
+
+  if(!!taskIndex) {
+    response.status(404).json( { Error: 'Task id not found ❌'} );
+  
+  } else if (!deadlineOnFormat(deadline)) {
+
+    response.status(400).json({ 
+      error: 'Deadline needs to be in format YYYY-MM-DD ❌',
+    });  
+  }
+
+  users[accountIndex].tasks[taskIndex].title = title;
+  users[accountIndex].tasks[taskIndex].deadline = new Date(deadline);
+
+  response.status(200).json({ task_update: users[accountIndex].tasks[taskIndex]});
 });
 
 app.patch('/todos/:id/done', checksExistsUserAccount, (request, response) => {
-  // Complete aqui
+  
 });
 
 app.delete('/todos/:id', checksExistsUserAccount, (request, response) => {
