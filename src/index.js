@@ -24,7 +24,6 @@ function checksExistsUserAccount(request, response, next) {
   return next();
 }
 
-
 function checksExistsTask(request) {
   
   const { user } = request;
@@ -32,7 +31,26 @@ function checksExistsTask(request) {
 
   const task = user.tasks.find(task => task.title === title);
   return task || false;
+}
 
+function findIndexOfTaskAndUser(username,taskId=false) {
+  
+  const accountIndex = users.findIndex(( user ) => user.username === username);
+  const taskIndex = taskId ? users[accountIndex].tasks.findIndex(( task ) =>  task.id === taskId) : taskId;
+
+  return [accountIndex, taskIndex];
+}
+
+function checksValidTaskId(username, id) {
+  
+  const [_, taskIndex] = findIndexOfTaskAndUser(username, id);
+
+  if(!!taskIndex) {
+    const error = `Task id (${id}) not found ❌`;
+    return error;
+  } else {
+    return false;
+  }
 }
 
 const deadlineOnFormat = (deadline) => deadline.split('-').length === 3;
@@ -40,10 +58,9 @@ const deadlineOnFormat = (deadline) => deadline.split('-').length === 3;
 app.post('/users', (request, response) => {
   const { name, username } = request.body;
 
-  const exists = users.find(( user ) => user.name === name || user.username === username);
-  
+  const [ existsUser,_ ] = findIndexOfTaskAndUser(username);
 
-  if(exists) {
+  if(!existsUser) {
     response.status(400).send('User already exists ❌');  
   }
 
@@ -54,7 +71,7 @@ app.post('/users', (request, response) => {
     tasks: [],
   });
   
-  return response.status(200).send('User created for successfully ✔️');   
+  return response.status(200).json('User created for successfully ✔️');   
 });
 
 app.get('/todos', checksExistsUserAccount, (request, response) => {
@@ -75,12 +92,12 @@ app.post('/todos', checksExistsUserAccount, (request, response) => {
     response.status(400).json({ 
       error: 'Deadline needs to be in format YYYY-MM-DD ❌',
     })
-    
+
   } else if (checksExistsTask(request)) {
     response.status(400).send('Task already exists ❌');
 
   } else {
-    const accountIndex = users.findIndex( ( user ) => user.username === request.user.username);
+    const [accountIndex,_ ] = findIndexOfTaskAndUser(request.user.username);
        
     users[accountIndex].tasks.push({ 
       id: uuidv4(),
@@ -95,16 +112,15 @@ app.post('/todos', checksExistsUserAccount, (request, response) => {
 });
 
 app.put('/todos/:id', checksExistsUserAccount, (request, response) => {
-  const { id } = request.params
+  const { id } = request.params;
   const { username } = request.headers;
   const { deadline, title } = request.body;
 
-  const accountIndex = users.findIndex(( user ) => user.username === username);
-  const taskIndex = users[accountIndex].tasks.findIndex(( task ) =>  task.id === id);
+  const validId = checksValidTaskId(username,id);
 
-  if(!!taskIndex) {
-    response.status(404).json( { Error: 'Task id not found ❌'} );
-  
+  if(validId) {
+    response.status(400).json({ error: validId });  
+
   } else if (!deadlineOnFormat(deadline)) {
 
     response.status(400).json({ 
@@ -112,14 +128,25 @@ app.put('/todos/:id', checksExistsUserAccount, (request, response) => {
     });  
   }
 
+  const [ accountIndex, taskIndex ] = findIndexOfTaskAndUser(username, id)
+  
   users[accountIndex].tasks[taskIndex].title = title;
   users[accountIndex].tasks[taskIndex].deadline = new Date(deadline);
 
-  response.status(200).json({ task_update: users[accountIndex].tasks[taskIndex]});
+  response.status(200).json({ task_update: users[accountIndex].tasks[taskIndex] });
 });
 
 app.patch('/todos/:id/done', checksExistsUserAccount, (request, response) => {
-  
+  const { id } = request.params;
+  const { username } = request.headers;
+  const validId = checksValidTaskId(username,id);
+
+  if(valid) {
+    response.status(400).json({ error: valid });  
+  } else {
+    response.status(200).send('funfa');
+  };
+
 });
 
 app.delete('/todos/:id', checksExistsUserAccount, (request, response) => {
